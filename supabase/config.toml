@@ -1,0 +1,4 @@
+project_id = "toudroeghfgxgrhvjzuq"
+
+[functions.process-feedback]
+verify_jwt = false
