@@ -22,7 +22,7 @@ function getFileType(name: string): 'text' | 'audio' | 'video' {
 const Index: React.FC = () => {
   const [entries, setEntries] = useState<FeedbackEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [pipelineSteps, setPipelineSteps] = useState([
+  const [pipelineSteps, setPipelineSteps] = useState<{ label: string; description: string; status: 'idle' | 'active' | 'completed' }[]>([
     { label: 'Ingest Data', description: 'Accept and parse input files', status: 'idle' as const },
     { label: 'Detect Language', description: 'Identify original language of each entry', status: 'idle' as const },
     { label: 'Transcribe Audio/Video', description: 'Convert speech to text', status: 'idle' as const },
