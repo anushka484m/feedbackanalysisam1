@@ -117,7 +117,6 @@
 
   .glow-text {
     @apply text-primary;
-    text-shadow: 0 0 20px hsl(175 80% 48% / 0.4);
   }
 
   .table-header {
