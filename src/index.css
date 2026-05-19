@@ -6,56 +6,56 @@
 
 @layer base {
   :root {
-    --background: 220 20% 7%;
-    --foreground: 210 20% 92%;
+    --background: 210 25% 98%;
+    --foreground: 220 25% 12%;
 
-    --card: 220 18% 10%;
-    --card-foreground: 210 20% 92%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 12%;
 
-    --popover: 220 18% 12%;
-    --popover-foreground: 210 20% 92%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 12%;
 
-    --primary: 175 80% 48%;
-    --primary-foreground: 220 20% 7%;
+    --primary: 175 75% 36%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 16% 16%;
-    --secondary-foreground: 210 20% 85%;
+    --secondary: 220 16% 94%;
+    --secondary-foreground: 220 25% 18%;
 
-    --muted: 220 14% 14%;
-    --muted-foreground: 215 12% 55%;
+    --muted: 220 16% 96%;
+    --muted-foreground: 220 10% 45%;
 
-    --accent: 175 60% 40%;
-    --accent-foreground: 220 20% 7%;
+    --accent: 175 70% 42%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
 
-    --success: 142 70% 45%;
-    --success-foreground: 220 20% 7%;
+    --success: 142 70% 38%;
+    --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 220 20% 7%;
+    --warning: 38 92% 48%;
+    --warning-foreground: 0 0% 100%;
 
-    --border: 220 14% 18%;
-    --input: 220 14% 18%;
-    --ring: 175 80% 48%;
+    --border: 220 14% 90%;
+    --input: 220 14% 90%;
+    --ring: 175 75% 36%;
 
     --radius: 0.5rem;
 
     --font-mono: 'JetBrains Mono', monospace;
     --font-sans: 'Inter', sans-serif;
 
-    --glow-primary: 0 0 20px hsl(175 80% 48% / 0.15);
-    --glow-primary-strong: 0 0 30px hsl(175 80% 48% / 0.25);
+    --glow-primary: 0 4px 16px hsl(175 75% 36% / 0.12);
+    --glow-primary-strong: 0 6px 24px hsl(175 75% 36% / 0.2);
 
-    --sidebar-background: 220 18% 10%;
-    --sidebar-foreground: 210 20% 85%;
-    --sidebar-primary: 175 80% 48%;
-    --sidebar-primary-foreground: 220 20% 7%;
-    --sidebar-accent: 220 14% 14%;
-    --sidebar-accent-foreground: 210 20% 85%;
-    --sidebar-border: 220 14% 18%;
-    --sidebar-ring: 175 80% 48%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 25% 18%;
+    --sidebar-primary: 175 75% 36%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 16% 96%;
+    --sidebar-accent-foreground: 220 25% 18%;
+    --sidebar-border: 220 14% 90%;
+    --sidebar-ring: 175 75% 36%;
   }
 }
 
@@ -117,7 +117,6 @@
 
   .glow-text {
     @apply text-primary;
-    text-shadow: 0 0 20px hsl(175 80% 48% / 0.4);
   }
 
   .table-header {

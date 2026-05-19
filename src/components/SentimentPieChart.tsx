@@ -37,16 +37,16 @@ const SentimentPieChart: React.FC<SentimentPieChartProps> = ({ data }) => {
           </Pie>
           <Tooltip
             contentStyle={{
-              backgroundColor: 'hsl(220 18% 10%)',
-              border: '1px solid hsl(220 14% 18%)',
+              backgroundColor: 'hsl(0 0% 100%)',
+              border: '1px solid hsl(220 14% 90%)',
               borderRadius: '8px',
-              color: 'hsl(210 20% 92%)',
+              color: 'hsl(220 25% 12%)',
               fontFamily: 'JetBrains Mono, monospace',
               fontSize: '12px',
             }}
           />
           <Legend
-            formatter={(value) => <span style={{ color: 'hsl(210 20% 85%)', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>{value}</span>}
+            formatter={(value) => <span style={{ color: 'hsl(220 25% 18%)', fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}>{value}</span>}
           />
         </PieChart>
       </ResponsiveContainer>
