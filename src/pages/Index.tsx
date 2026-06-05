@@ -432,18 +432,22 @@ const Index: React.FC = () => {
               </button>
             </div>
 
-            {pendingCount > 0 && activeTab === 'process' && (
+            {pendingCount > 0 && activeTab === 'process' && writeAllowed && (
               <Button onClick={processEntries} disabled={isProcessing}>
                 <Zap className="h-4 w-4 mr-2" />
                 {isProcessing ? 'Processing...' : `Process ${pendingCount}`}
               </Button>
             )}
-            {completedCount > 0 && activeTab === 'analyze' && (
+            {completedCount > 0 && activeTab === 'analyze' && writeAllowed && (
               <Button onClick={runAnalysis} disabled={isAnalyzing}>
                 <BarChart3 className="h-4 w-4 mr-2" />
                 {isAnalyzing ? 'Analyzing...' : `Analyze ${completedCount} entries`}
               </Button>
             )}
+            {!writeAllowed && (
+              <span className="stat-badge bg-secondary text-xs"><Lock className="h-3 w-3" /> Read-only</span>
+            )}
+            <UserMenu />
           </div>
         </div>
       </header>
