@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { FeedbackEntry, ProcessingStats, ExportFormat, AnalysisResult } from '@/types/feedback';
 import UploadZone from '@/components/UploadZone';
@@ -6,9 +6,12 @@ import ProcessingPipeline from '@/components/ProcessingPipeline';
 import DatasetView from '@/components/DatasetView';
 import StatsBar from '@/components/StatsBar';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
-import { Database, Zap, BarChart3, Upload as UploadIcon } from 'lucide-react';
+import UserMenu from '@/components/UserMenu';
+import { Database, Zap, BarChart3, Upload as UploadIcon, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useAuth, canWrite } from '@/hooks/useAuth';
+import { loadEntries, insertEntry, updateEntry, saveAnalysisRun, insertAlerts } from '@/lib/feedbackRepo';
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.ogg', '.webm'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov'];
@@ -85,6 +88,10 @@ function buildAnalysisResult(entries: FeedbackEntry[], insights: any): AnalysisR
 }
 
 const Index: React.FC = () => {
+  const { user, profile, roles } = useAuth();
+  const writeAllowed = canWrite(roles);
+  const orgId = profile?.org_id ?? null;
+
   const [entries, setEntries] = useState<FeedbackEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -98,6 +105,13 @@ const Index: React.FC = () => {
     { label: 'Extract Metadata', description: 'Source, region, timestamp extraction', status: 'idle' },
     { label: 'Deduplicate & Clean', description: 'Remove duplicates and filler content', status: 'idle' },
   ]);
+
+  useEffect(() => {
+    if (!orgId) return;
+    loadEntries(orgId)
+      .then(setEntries)
+      .catch(err => { console.error(err); toast.error('Failed to load feedback'); });
+  }, [orgId]);
 
   const stats: ProcessingStats = {
     total: entries.length,
