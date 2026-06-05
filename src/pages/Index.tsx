@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { FeedbackEntry, ProcessingStats, ExportFormat, AnalysisResult } from '@/types/feedback';
 import UploadZone from '@/components/UploadZone';
@@ -6,9 +6,12 @@ import ProcessingPipeline from '@/components/ProcessingPipeline';
 import DatasetView from '@/components/DatasetView';
 import StatsBar from '@/components/StatsBar';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
-import { Database, Zap, BarChart3, Upload as UploadIcon } from 'lucide-react';
+import UserMenu from '@/components/UserMenu';
+import { Database, Zap, BarChart3, Upload as UploadIcon, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useAuth, canWrite } from '@/hooks/useAuth';
+import { loadEntries, insertEntry, updateEntry, saveAnalysisRun, insertAlerts } from '@/lib/feedbackRepo';
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.ogg', '.webm'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov'];
@@ -85,6 +88,10 @@ function buildAnalysisResult(entries: FeedbackEntry[], insights: any): AnalysisR
 }
 
 const Index: React.FC = () => {
+  const { user, profile, roles } = useAuth();
+  const writeAllowed = canWrite(roles);
+  const orgId = profile?.org_id ?? null;
+
   const [entries, setEntries] = useState<FeedbackEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -98,6 +105,13 @@ const Index: React.FC = () => {
     { label: 'Extract Metadata', description: 'Source, region, timestamp extraction', status: 'idle' },
     { label: 'Deduplicate & Clean', description: 'Remove duplicates and filler content', status: 'idle' },
   ]);
+
+  useEffect(() => {
+    if (!orgId) return;
+    loadEntries(orgId)
+      .then(setEntries)
+      .catch(err => { console.error(err); toast.error('Failed to load feedback'); });
+  }, [orgId]);
 
   const stats: ProcessingStats = {
     total: entries.length,
@@ -121,8 +135,10 @@ const Index: React.FC = () => {
     setPipelineSteps(prev => prev.map(s => ({ ...s, status: 'idle' as const })));
   };
 
-  const handleTextPaste = useCallback((text: string, source: string) => {
-    const newEntry: FeedbackEntry = {
+  const handleTextPaste = useCallback(async (text: string, source: string) => {
+    if (!orgId || !user) { toast.error('Not signed in'); return; }
+    if (!writeAllowed) { toast.error('Viewers cannot add feedback'); return; }
+    const draft: FeedbackEntry = {
       id: crypto.randomUUID(),
       originalText: text,
       translatedText: '',
@@ -131,38 +147,45 @@ const Index: React.FC = () => {
       timestamp: new Date().toISOString(),
       status: 'pending',
     };
-    setEntries(prev => [...prev, newEntry]);
-    toast.success('Feedback added to queue');
-  }, []);
+    try {
+      const saved = await insertEntry(orgId, user.id, draft);
+      setEntries(prev => [...prev, saved]);
+      toast.success('Feedback added to queue');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to save feedback');
+    }
+  }, [orgId, user, writeAllowed]);
 
-  const handleFilesSelected = useCallback((files: File[]) => {
-    const newEntries: FeedbackEntry[] = files.map(file => ({
-      id: crypto.randomUUID(),
-      originalText: '',
-      translatedText: '',
-      language: '',
-      source: getFileType(file.name) === 'audio' ? 'call' as const : getFileType(file.name) === 'video' ? 'video' as const : 'other' as const,
-      timestamp: new Date().toISOString(),
-      fileName: file.name,
-      status: 'pending' as const,
-    }));
-    setEntries(prev => [...prev, ...newEntries]);
+  const handleFilesSelected = useCallback(async (files: File[]) => {
+    if (!orgId || !user) { toast.error('Not signed in'); return; }
+    if (!writeAllowed) { toast.error('Viewers cannot upload feedback'); return; }
 
-    files.forEach((file, i) => {
-      if (getFileType(file.name) === 'text') {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const text = e.target?.result as string;
-          setEntries(prev => prev.map(entry =>
-            entry.id === newEntries[i].id ? { ...entry, originalText: text } : entry
-          ));
-        };
-        reader.readAsText(file);
+    for (const file of files) {
+      const ftype = getFileType(file.name);
+      let textContent = '';
+      if (ftype === 'text') {
+        textContent = await file.text();
       }
-    });
-
+      const draft: FeedbackEntry = {
+        id: crypto.randomUUID(),
+        originalText: textContent,
+        translatedText: '',
+        language: '',
+        source: ftype === 'audio' ? 'call' : ftype === 'video' ? 'video' : 'other',
+        timestamp: new Date().toISOString(),
+        fileName: file.name,
+        status: 'pending',
+      };
+      try {
+        const saved = await insertEntry(orgId, user.id, draft);
+        setEntries(prev => [...prev, saved]);
+      } catch (err) {
+        console.error(err);
+      }
+    }
     toast.success(`${files.length} file(s) added to queue`);
-  }, []);
+  }, [orgId, user, writeAllowed]);
 
   const processEntries = async () => {
     const pending = entries.filter(e => e.status === 'pending');
@@ -182,6 +205,7 @@ const Index: React.FC = () => {
 
       for (const entry of pending) {
         setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'processing' } : e));
+        try { await updateEntry(entry.id, { status: 'processing' }); } catch {}
 
         try {
           const { data, error } = await supabase.functions.invoke('process-feedback', {
@@ -196,21 +220,19 @@ const Index: React.FC = () => {
 
           if (error) throw error;
 
-          setEntries(prev => prev.map(e =>
-            e.id === entry.id ? {
-              ...e,
-              translatedText: data.translatedText,
-              language: data.language,
-              region: data.region,
-              isDuplicate: data.isDuplicate,
-              status: 'completed',
-            } : e
-          ));
+          const patch = {
+            translatedText: data.translatedText,
+            language: data.language,
+            region: data.region,
+            isDuplicate: data.isDuplicate,
+            status: 'completed' as const,
+          };
+          setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, ...patch } : e));
+          await updateEntry(entry.id, patch);
         } catch (err) {
           console.error('Processing error:', err);
-          setEntries(prev => prev.map(e =>
-            e.id === entry.id ? { ...e, status: 'error' } : e
-          ));
+          setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error' } : e));
+          try { await updateEntry(entry.id, { status: 'error' }); } catch {}
         }
       }
 
@@ -278,14 +300,29 @@ const Index: React.FC = () => {
         return e;
       }));
 
-      // Build analysis result from updated entries
+      // Persist analysis fields per entry
+      await Promise.all(analyzed.map((m: any) => updateEntry(m.id, {
+        sentiment: m.sentiment,
+        sentimentScore: m.sentimentScore,
+        topic: m.topic,
+        keywords: m.keywords,
+      }).catch((e: any) => console.error('persist analysis', e))));
+
       const updatedEntries = entries.map(e => {
         const match = analyzed.find((a: any) => a.id === e.id);
         return match ? { ...e, ...match } : e;
       });
-      
+
       const result = buildAnalysisResult(updatedEntries, data.insights || {});
       setAnalysis(result);
+
+      // Save analysis snapshot + alerts (best-effort)
+      if (orgId && user) {
+        saveAnalysisRun(orgId, user.id, result, updatedEntries.length).catch(console.error);
+        insertAlerts(orgId, updatedEntries.filter(e => e.status === 'completed' && !e.isDuplicate))
+          .catch(console.error);
+      }
+
       setActiveTab('analyze');
       toast.success('Analysis complete!');
     } catch (err) {
@@ -395,18 +432,22 @@ const Index: React.FC = () => {
               </button>
             </div>
 
-            {pendingCount > 0 && activeTab === 'process' && (
+            {pendingCount > 0 && activeTab === 'process' && writeAllowed && (
               <Button onClick={processEntries} disabled={isProcessing}>
                 <Zap className="h-4 w-4 mr-2" />
                 {isProcessing ? 'Processing...' : `Process ${pendingCount}`}
               </Button>
             )}
-            {completedCount > 0 && activeTab === 'analyze' && (
+            {completedCount > 0 && activeTab === 'analyze' && writeAllowed && (
               <Button onClick={runAnalysis} disabled={isAnalyzing}>
                 <BarChart3 className="h-4 w-4 mr-2" />
                 {isAnalyzing ? 'Analyzing...' : `Analyze ${completedCount} entries`}
               </Button>
             )}
+            {!writeAllowed && (
+              <span className="stat-badge bg-secondary text-xs"><Lock className="h-3 w-3" /> Read-only</span>
+            )}
+            <UserMenu />
           </div>
         </div>
       </header>
