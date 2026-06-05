@@ -135,8 +135,10 @@ const Index: React.FC = () => {
     setPipelineSteps(prev => prev.map(s => ({ ...s, status: 'idle' as const })));
   };
 
-  const handleTextPaste = useCallback((text: string, source: string) => {
-    const newEntry: FeedbackEntry = {
+  const handleTextPaste = useCallback(async (text: string, source: string) => {
+    if (!orgId || !user) { toast.error('Not signed in'); return; }
+    if (!writeAllowed) { toast.error('Viewers cannot add feedback'); return; }
+    const draft: FeedbackEntry = {
       id: crypto.randomUUID(),
       originalText: text,
       translatedText: '',
@@ -145,38 +147,45 @@ const Index: React.FC = () => {
       timestamp: new Date().toISOString(),
       status: 'pending',
     };
-    setEntries(prev => [...prev, newEntry]);
-    toast.success('Feedback added to queue');
-  }, []);
+    try {
+      const saved = await insertEntry(orgId, user.id, draft);
+      setEntries(prev => [...prev, saved]);
+      toast.success('Feedback added to queue');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to save feedback');
+    }
+  }, [orgId, user, writeAllowed]);
 
-  const handleFilesSelected = useCallback((files: File[]) => {
-    const newEntries: FeedbackEntry[] = files.map(file => ({
-      id: crypto.randomUUID(),
-      originalText: '',
-      translatedText: '',
-      language: '',
-      source: getFileType(file.name) === 'audio' ? 'call' as const : getFileType(file.name) === 'video' ? 'video' as const : 'other' as const,
-      timestamp: new Date().toISOString(),
-      fileName: file.name,
-      status: 'pending' as const,
-    }));
-    setEntries(prev => [...prev, ...newEntries]);
+  const handleFilesSelected = useCallback(async (files: File[]) => {
+    if (!orgId || !user) { toast.error('Not signed in'); return; }
+    if (!writeAllowed) { toast.error('Viewers cannot upload feedback'); return; }
 
-    files.forEach((file, i) => {
-      if (getFileType(file.name) === 'text') {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const text = e.target?.result as string;
-          setEntries(prev => prev.map(entry =>
-            entry.id === newEntries[i].id ? { ...entry, originalText: text } : entry
-          ));
-        };
-        reader.readAsText(file);
+    for (const file of files) {
+      const ftype = getFileType(file.name);
+      let textContent = '';
+      if (ftype === 'text') {
+        textContent = await file.text();
       }
-    });
-
+      const draft: FeedbackEntry = {
+        id: crypto.randomUUID(),
+        originalText: textContent,
+        translatedText: '',
+        language: '',
+        source: ftype === 'audio' ? 'call' : ftype === 'video' ? 'video' : 'other',
+        timestamp: new Date().toISOString(),
+        fileName: file.name,
+        status: 'pending',
+      };
+      try {
+        const saved = await insertEntry(orgId, user.id, draft);
+        setEntries(prev => [...prev, saved]);
+      } catch (err) {
+        console.error(err);
+      }
+    }
     toast.success(`${files.length} file(s) added to queue`);
-  }, []);
+  }, [orgId, user, writeAllowed]);
 
   const processEntries = async () => {
     const pending = entries.filter(e => e.status === 'pending');
