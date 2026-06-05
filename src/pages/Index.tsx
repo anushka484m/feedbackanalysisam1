@@ -205,6 +205,7 @@ const Index: React.FC = () => {
 
       for (const entry of pending) {
         setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'processing' } : e));
+        try { await updateEntry(entry.id, { status: 'processing' }); } catch {}
 
         try {
           const { data, error } = await supabase.functions.invoke('process-feedback', {
@@ -219,21 +220,19 @@ const Index: React.FC = () => {
 
           if (error) throw error;
 
-          setEntries(prev => prev.map(e =>
-            e.id === entry.id ? {
-              ...e,
-              translatedText: data.translatedText,
-              language: data.language,
-              region: data.region,
-              isDuplicate: data.isDuplicate,
-              status: 'completed',
-            } : e
-          ));
+          const patch = {
+            translatedText: data.translatedText,
+            language: data.language,
+            region: data.region,
+            isDuplicate: data.isDuplicate,
+            status: 'completed' as const,
+          };
+          setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, ...patch } : e));
+          await updateEntry(entry.id, patch);
         } catch (err) {
           console.error('Processing error:', err);
-          setEntries(prev => prev.map(e =>
-            e.id === entry.id ? { ...e, status: 'error' } : e
-          ));
+          setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error' } : e));
+          try { await updateEntry(entry.id, { status: 'error' }); } catch {}
         }
       }
 
@@ -301,14 +300,29 @@ const Index: React.FC = () => {
         return e;
       }));
 
-      // Build analysis result from updated entries
+      // Persist analysis fields per entry
+      await Promise.all(analyzed.map((m: any) => updateEntry(m.id, {
+        sentiment: m.sentiment,
+        sentimentScore: m.sentimentScore,
+        topic: m.topic,
+        keywords: m.keywords,
+      }).catch((e: any) => console.error('persist analysis', e))));
+
       const updatedEntries = entries.map(e => {
         const match = analyzed.find((a: any) => a.id === e.id);
         return match ? { ...e, ...match } : e;
       });
-      
+
       const result = buildAnalysisResult(updatedEntries, data.insights || {});
       setAnalysis(result);
+
+      // Save analysis snapshot + alerts (best-effort)
+      if (orgId && user) {
+        saveAnalysisRun(orgId, user.id, result, updatedEntries.length).catch(console.error);
+        insertAlerts(orgId, updatedEntries.filter(e => e.status === 'completed' && !e.isDuplicate))
+          .catch(console.error);
+      }
+
       setActiveTab('analyze');
       toast.success('Analysis complete!');
     } catch (err) {
